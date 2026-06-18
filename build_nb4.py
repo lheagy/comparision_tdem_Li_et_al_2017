@@ -102,7 +102,7 @@ def run_1d(loop="square", n_points_per_path=10, radius=None):
     return np.abs(sim.dpred(np.r_[sigma_hs]))
 
 
-d_anal      = analytic_halfspace(times, sigma_hs, a)
+d_analytic      = analytic_halfspace(times, sigma_hs, a)
 d_1d_square = run_1d("square")
 d_1d_circle = run_1d("circle")
 print("analytic + 1D layered references computed.")""")
@@ -175,21 +175,21 @@ reproduces it to ~1e-3 %, so SimPEG's 1D code is the trustworthy reference; the 
 """)
 
 code(r"""# COMPUTE / report the 1D validation numbers (references computed in Setup)
-print(f"1D circular loop vs analytic : max error = {np.abs(d_1d_circle/d_anal-1).max()*100:.4f} %")
-print(f"1D square   loop vs analytic : max error = {np.abs(d_1d_square/d_anal-1).max()*100:.2f} % "
+print(f"1D circular loop vs analytic : max error = {np.abs(d_1d_circle/d_analytic-1).max()*100:.4f} %")
+print(f"1D square   loop vs analytic : max error = {np.abs(d_1d_square/d_analytic-1).max()*100:.2f} % "
       f"(square-vs-circle geometry; see Section 4)")""")
 
 md("### Figure 2 — Ward & Hohmann analytic, and the SimPEG 1D circular-loop reproduction")
 
 code(r"""# FIGURE ONLY
 fig, ax = plt.subplots(1, 2, figsize=(12, 4.6))
-ax[0].loglog(times, d_anal, 'k-', lw=2.5, label='Ward & Hohmann analytic (circle, r=a)')
+ax[0].loglog(times, d_analytic, 'k-', lw=2.5, label='Ward & Hohmann analytic (circle, r=a)')
 ax[0].loglog(times, d_1d_circle, 'C0o', ms=5, label='SimPEG 1D layered (circular loop)')
 ax[0].set_xlabel('time (s)'); ax[0].set_ylabel(r'$|\partial B_z/\partial t|$ (V/A·m$^2$)')
 ax[0].grid(True, which='both', alpha=.4); ax[0].legend(fontsize=9)
 ax[0].set_title('Ward & Hohmann half-space response')
-ax[1].semilogx(times, (d_1d_circle/d_anal-1)*1e2, 'C0o-', ms=5,
-               label=f'max |error| = {np.abs(d_1d_circle/d_anal-1).max()*1e2:.1e} %')
+ax[1].semilogx(times, (d_1d_circle/d_analytic-1)*1e2, 'C0o-', ms=5,
+               label=f'max |error| = {np.abs(d_1d_circle/d_analytic-1).max()*1e2:.1e} %')
 ax[1].axhline(0, color='k', lw=1.5); ax[1].set_xlabel('time (s)')
 ax[1].set_ylabel('1D circle / analytic − 1  [%]')
 ax[1].grid(True, which='both', alpha=.4); ax[1].legend(fontsize=9)
@@ -308,7 +308,7 @@ def run_3d(name, h, ts, loop="square", store=None):
     if store is not None:
         store[name] = d
     NCELLS[(loop, name)] = nc
-    ref = d_anal if loop == "circle" else d_1d_square
+    ref = d_analytic if loop == "circle" else d_1d_square
     print(f"  [{loop:6s}|{name:10s}] {nc/1e3:4.0f}k cells, {len(ts):3d} steps, "
           f"{'cached' if cached else f'{dt:3.0f}s':>6s} | mean/ref = {(d/ref).mean():.3f}")
     return d
@@ -335,7 +335,7 @@ run_3d("mesh_time", [5, 5, 2.5],  TS["time_fine"], "circle", RC)
 
 print("\nmean ratio to analytic:")
 for k in ["baseline", "time_fine", "fix", "mesh_fine", "mesh_time"]:
-    r = RC[k]/d_anal
+    r = RC[k]/d_analytic
     print(f"  {k:10s}: mean {r.mean():.3f}  range {r.min():.3f}-{r.max():.3f}")""")
 
 md("### Figure 3 — convergence study (circular loop vs exact analytic)")
@@ -347,14 +347,14 @@ order = [("baseline","coarse mesh + orig ×2 steps (55)","o-"),
          ("mesh_fine","FINE mesh + orig ×2 steps","x--"),
          ("mesh_time","fine mesh + ×1.5 steps","d-")]
 fig, ax = plt.subplots(1, 2, figsize=(12, 4.6))
-ax[0].loglog(times, d_anal, 'k-', lw=2.5, label='closed-form analytic')
+ax[0].loglog(times, d_analytic, 'k-', lw=2.5, label='closed-form analytic')
 for k, lab, st in order:
     ax[0].loglog(times, RC[k], st, ms=4, label=lab)
 ax[0].set_xlabel('time (s)'); ax[0].set_ylabel(r'$|\partial B_z/\partial t|$')
 ax[0].grid(True, which='both', alpha=.4); ax[0].legend(fontsize=7.5)
 ax[0].set_title('SimPEG 3D octree (circular loop) vs analytic')
 for k, lab, st in order:
-    ax[1].semilogx(times, RC[k]/d_anal, st, ms=4, label=lab)
+    ax[1].semilogx(times, RC[k]/d_analytic, st, ms=4, label=lab)
 ax[1].axhline(1, color='k', lw=2); ax[1].set_ylim(0.95, 1.35)
 ax[1].set_xlabel('time (s)'); ax[1].set_ylabel('ratio to analytic'); ax[1].grid(True, which='both', alpha=.4)
 ax[1].legend(fontsize=7.5); ax[1].set_title('Time-steps close most of the gap; a spatial floor remains')
@@ -364,17 +364,17 @@ md("### Figure 4 — circular loop, before/after the fix")
 
 code(r"""# FIGURE ONLY
 fig, ax = plt.subplots(1, 2, figsize=(12, 4.8))
-ax[0].loglog(times, d_anal, 'k-', lw=2.5, label='analytic half-space (Ward & Hohmann)')
+ax[0].loglog(times, d_analytic, 'k-', lw=2.5, label='analytic half-space (Ward & Hohmann)')
 ax[0].loglog(times, d_1d_circle, 'C2o', ms=4, label='SimPEG 1D layered (circle)')
 ax[0].loglog(times, RC["baseline"], 'C3s-', ms=4, label='SimPEG 3D octree — ORIGINAL steps')
 ax[0].loglog(times, RC["fix"], 'C0^-', ms=4, label='SimPEG 3D octree — FIXED steps')
 ax[0].set_xlabel('time (s)'); ax[0].set_ylabel(r'$|\partial B_z/\partial t|$ (V/A·m$^2$)')
 ax[0].grid(True, which='both', alpha=.4); ax[0].legend(fontsize=8); ax[0].set_title('Half-space TEM response (circle)')
-ax[1].semilogx(times, d_1d_circle/d_anal, 'C2o', ms=4, label='1D layered (~1e-3%)')
-ax[1].semilogx(times, RC["baseline"]/d_anal, 'C3s-', ms=4,
-               label=f'3D ORIGINAL (mean {(RC["baseline"]/d_anal).mean():.2f})')
-ax[1].semilogx(times, RC["fix"]/d_anal, 'C0^-', ms=4,
-               label=f'3D FIXED (mean {(RC["fix"]/d_anal).mean():.3f})')
+ax[1].semilogx(times, d_1d_circle/d_analytic, 'C2o', ms=4, label='1D layered (~1e-3%)')
+ax[1].semilogx(times, RC["baseline"]/d_analytic, 'C3s-', ms=4,
+               label=f'3D ORIGINAL (mean {(RC["baseline"]/d_analytic).mean():.2f})')
+ax[1].semilogx(times, RC["fix"]/d_analytic, 'C0^-', ms=4,
+               label=f'3D FIXED (mean {(RC["fix"]/d_analytic).mean():.3f})')
 ax[1].axhline(1, color='k', lw=2); ax[1].set_ylim(0.95, 1.35)
 ax[1].set_xlabel('time (s)'); ax[1].set_ylabel('ratio to analytic')
 ax[1].grid(True, which='both', alpha=.4); ax[1].legend(fontsize=8)
@@ -454,11 +454,11 @@ code(r"""# FIGURE ONLY
 fig, ax = plt.subplots(1, 2, figsize=(12, 4.6))
 ax[0].loglog(times, RS["baseline"], 'C0-o', ms=3, label='SimPEG 3D octree (square, original)')
 ax[0].loglog(times, d_1d_square, 'k--', label='SimPEG 1D layered (square)')
-ax[0].loglog(times, d_anal, 'r:', lw=2, label='analytic (equal-area circle)')
+ax[0].loglog(times, d_analytic, 'r:', lw=2, label='analytic (equal-area circle)')
 ax[0].set_xlabel('time (s)'); ax[0].set_ylabel(r'$|\partial B_z/\partial t|$ (V/A·m$^2$)')
 ax[0].grid(True, which='both', alpha=.4); ax[0].legend(fontsize=8); ax[0].set_title('Half-space TEM response')
-ax[1].semilogx(times, RS["baseline"]/d_anal, 'C0-o', ms=3, label='3D octree (square) / analytic')
-ax[1].semilogx(times, d_1d_square/d_anal, 'k--', label='1D layered (square) / analytic')
+ax[1].semilogx(times, RS["baseline"]/d_analytic, 'C0-o', ms=3, label='3D octree (square) / analytic')
+ax[1].semilogx(times, d_1d_square/d_analytic, 'k--', label='1D layered (square) / analytic')
 ax[1].axhline(1, color='r', ls=':'); ax[1].set_ylim(0.9, 1.28)
 ax[1].set_xlabel('time (s)'); ax[1].set_ylabel('ratio to analytic')
 ax[1].grid(True, which='both', alpha=.4); ax[1].legend(fontsize=8); ax[1].set_title('Relative error')
