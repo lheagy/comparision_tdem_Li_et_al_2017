@@ -124,12 +124,12 @@ _do = np.abs(_orig["voltage_V_Am2"].values)
 _di = np.abs(_impr["voltage_V_Am2"].values)
 
 fig, ax = plt.subplots(1, 2, figsize=(12, 4.8))
-ax[0].loglog(_t, _an, 'k-',  lw=3.0, label='analytic', zorder=1)
-ax[0].loglog(_t, _do, 'C3s--', ms=6, lw=1.6, label='original', zorder=2)
-ax[0].loglog(_t, _di, 'C0o-',  ms=5, lw=1.6, label='improved 3D SimPEG', zorder=3)
+ax[0].loglog(_t, _an, 'k-',  lw=3.0, label='Ward & Hohmann analytic (circle)', zorder=1)
+ax[0].loglog(_t, _do, 'C3s--', ms=6, lw=1.6, label='original (square)', zorder=2)
+ax[0].loglog(_t, _di, 'C0o-',  ms=5, lw=1.6, label='improved 3D SimPEG (square)', zorder=3)
 ax[0].set_xlabel('time (s)'); ax[0].set_ylabel(r'$|\partial B_z/\partial t|$  (V/A·m$^2$)')
-ax[0].grid(True, which='both', alpha=.4); ax[0].legend(fontsize=10)
-ax[0].set_title('Half-space TDEM step-off response')
+ax[0].grid(True, which='both', alpha=.4); ax[0].legend(fontsize=9)
+ax[0].set_title('Half-space step-off: square model vs circular analytic')
 ax[1].semilogx(_t, _do/_an, 'C3s--', ms=6, lw=1.6,
                label=f'original (mean {(_do/_an).mean():.2f}, +{(_do/_an-1).max()*100:.0f}% max)')
 ax[1].semilogx(_t, _di/_an, 'C0o-', ms=5, lw=1.6,
@@ -153,10 +153,44 @@ ax[1].vlines(_win(_wc), 0.872, 0.918, color='C3', lw=2.6, alpha=.95, zorder=5,
              label='original step-width change (×2)')
 ax[1].plot(_win(_ti), np.full_like(_win(_ti), 0.94), '|', color='C0', ms=10, mew=1.0,
            alpha=.55, label=f'improved step times ({len(_ti)})')
-ax[1].set_xlabel('time (s)'); ax[1].set_ylabel('ratio to analytic')
+ax[1].set_xlabel('time (s)'); ax[1].set_ylabel('ratio to circular analytic')
 ax[1].grid(True, which='both', alpha=.4); ax[1].legend(fontsize=8.2, loc='upper left')
-ax[1].set_title('A one-line time-stepping fix: +7–24% → within ~2%')
+ax[1].set_title('Square model vs circular analytic: +7–24% → within ~2%')
 plt.tight_layout(); plt.savefig('fig_hero.png', dpi=140); plt.show()""")
+
+md(r"""### Figure 1b: the same comparison against the SimPEG 1D square-loop solution
+
+Using the SimPEG **1D layered solution for the same square loop** as the reference (instead of the circular
+analytic) removes the square-vs-circle geometry difference. Against this same-geometry reference the
+improved solution is within a few percent at *every* channel, including the earliest times — the early-time
+gap in Figure 1 was geometry (circle vs square), not the time-stepping.
+""")
+
+code(r"""# FIGURE ONLY — 3D committed solutions vs the SimPEG 1D square solution (same geometry as the model)
+_ref = d_1d_square   # SimPEG 1D layered, square LineCurrent (computed in Setup, on `times` == CSV times)
+fig, ax = plt.subplots(1, 2, figsize=(12, 4.8))
+ax[0].loglog(times, _ref, 'k-', lw=3.0, label='SimPEG 1D (square)', zorder=1)
+ax[0].loglog(_t, _do, 'C3s--', ms=6, lw=1.6, label='original', zorder=2)
+ax[0].loglog(_t, _di, 'C0o-',  ms=5, lw=1.6, label='improved 3D SimPEG', zorder=3)
+ax[0].set_xlabel('time (s)'); ax[0].set_ylabel(r'$|\partial B_z/\partial t|$  (V/A·m$^2$)')
+ax[0].grid(True, which='both', alpha=.4); ax[0].legend(fontsize=10)
+ax[0].set_title('Half-space TDEM step-off response (vs SimPEG 1D, square loop)')
+ax[1].semilogx(_t, _do/_ref, 'C3s--', ms=6, lw=1.6,
+               label=f'original (mean {(_do/_ref).mean():.2f}, +{(_do/_ref-1).max()*100:.0f}% max)')
+ax[1].semilogx(_t, _di/_ref, 'C0o-', ms=5, lw=1.6,
+               label=f'improved (mean {(_di/_ref).mean():.3f}, max |err| {np.abs(_di/_ref-1).max()*100:.0f}%)')
+ax[1].axhspan(0.98, 1.02, color='green', alpha=.12, label='±2% band')
+ax[1].axhline(1, color='k', lw=1.5); ax[1].set_ylim(0.86, 1.3)
+ax[1].plot(_win(_to), np.full_like(_win(_to), 0.895), '|', color='C3', ms=10, mew=1.0,
+           alpha=.45, label=f'original step times ({len(_to)})')
+ax[1].vlines(_win(_wc), 0.872, 0.918, color='C3', lw=2.6, alpha=.95, zorder=5,
+             label='original step-width change (×2)')
+ax[1].plot(_win(_ti), np.full_like(_win(_ti), 0.94), '|', color='C0', ms=10, mew=1.0,
+           alpha=.55, label=f'improved step times ({len(_ti)})')
+ax[1].set_xlabel('time (s)'); ax[1].set_ylabel('ratio to SimPEG 1D')
+ax[1].grid(True, which='both', alpha=.4); ax[1].legend(fontsize=8.2, loc='upper left')
+ax[1].set_title('Same geometry (square vs square): improved within a few % at all times')
+plt.tight_layout(); plt.savefig('fig_hero_1d_square.png', dpi=140); plt.show()""")
 
 # ---------------------------------------------------------------- 1. Ward & Hohmann
 md(r"""## 1. The Ward & Hohmann analytic half-space response
@@ -456,7 +490,7 @@ ax[0].loglog(times, RS["baseline"], 'C0-o', ms=3, label='SimPEG 3D octree (squar
 ax[0].loglog(times, d_1d_square, 'k--', label='SimPEG 1D layered (square)')
 ax[0].loglog(times, d_analytic, 'r:', lw=2, label='analytic (equal-area circle)')
 ax[0].set_xlabel('time (s)'); ax[0].set_ylabel(r'$|\partial B_z/\partial t|$ (V/A·m$^2$)')
-ax[0].grid(True, which='both', alpha=.4); ax[0].legend(fontsize=8); ax[0].set_title('Half-space TEM response')
+ax[0].grid(True, which='both', alpha=.4); ax[0].legend(fontsize=8); ax[0].set_title('Half-space TEM response (square loop)')
 ax[1].semilogx(times, RS["baseline"]/d_analytic, 'C0-o', ms=3, label='3D octree (square) / analytic')
 ax[1].semilogx(times, d_1d_square/d_analytic, 'k--', label='1D layered (square) / analytic')
 ax[1].axhline(1, color='r', ls=':'); ax[1].set_ylim(0.9, 1.28)

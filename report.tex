@@ -1,6 +1,7 @@
 \documentclass[11pt]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage{graphicx}
+\usepackage{float}   % [H] = place figures/tables exactly here, in reference order
 \usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{xcolor}
@@ -34,22 +35,35 @@ forward model --- not a code defect --- and fixed it with a one-line change. Two
   (Section~\ref{sec:notbug}). The original model was simply under-resolved \emph{in time}.
   \item \textbf{The time-stepping must be designed conservatively.} The original ramp doubled the step size
   each level ($\times2$, 55 steps), which is too aggressive for backward-Euler and biases $\dbdt$ high by
-  $+7$--$24\,\%$. A gentler $\times1.4$ ramp (156 steps) removes the bias (Figure~\ref{fig:hero},
-  Section~\ref{sec:fix}). Refining the \emph{mesh} instead barely helps, and pushing the steps
-  \emph{arbitrarily} fine over-corrects --- so the rule is conservative \emph{and} well-resolved, not
+  $\sim$20\,\%. A gentler $\times1.4$ ramp (156 steps) removes it: against the same-geometry SimPEG 1D
+  \emph{square} solution the corrected response is within $\sim$3\,\% at every channel
+  (Figure~\ref{fig:hero}), and against the closed-form \emph{circular} analytic it is within $\sim$2\,\% on
+  average (Figure~\ref{fig:hero_circle}). Refining the \emph{mesh} instead barely helps, and pushing the
+  steps \emph{arbitrarily} fine over-corrects --- so the rule is conservative \emph{and} well-resolved, not
   finest-possible (Section~\ref{sec:onepct}).
 \end{enumerate}
 
-\begin{figure}[h]\centering
-  \includegraphics[width=\textwidth]{fig_hero.png}
-  \caption{\textbf{A one-line time-stepping fix.} The committed 3D SimPEG half-space solution before
-  (\emph{original}, $\times2$ ramp) and after (\emph{improved}, $\times1.4$ ramp) the fix, against the
-  Ward \& Hohmann analytic; both loaded directly from the committed CSVs. Left: decay curves. Right: ratio
-  to analytic --- the fix moves the mean from $1.19$ ($+7$--$24\,\%$) to $0.996$ (within $\sim$2\,\%). The
-  tick marks show where backward-Euler actually computes the field (thin: individual steps --- red 55
-  original, blue 156 improved); the \textbf{bold red lines} mark where the original step width doubles. The
-  early-time zig-zag of the original tracks its sparse stepping and the $\times2$ width changes.}
+\begin{figure}[H]\centering
+  \includegraphics[width=\textwidth]{fig_hero_1d_square.png}
+  \caption{\textbf{The fix, apples-to-apples (square vs square).} The committed 3D SimPEG \emph{square}-loop
+  solution before (\emph{original}, $\times2$ ramp) and after (\emph{improved}, $\times1.4$ ramp), against
+  the \textbf{SimPEG 1D layered solution for the same square loop} --- the correct same-geometry reference.
+  The fix moves the response from $+19\,\%$ on average (up to $+25\,\%$) to within $\sim$3\,\% at
+  \emph{every} channel (mean $1.00$). Tick marks show the backward-Euler step times (thin: individual
+  steps; \textbf{bold red}: where the original step width doubles); the original's zig-zag tracks its sparse
+  stepping.}
   \label{fig:hero}
+\end{figure}
+
+\begin{figure}[H]\centering
+  \includegraphics[width=\textwidth]{fig_hero.png}
+  \caption{\textbf{The same fix against the closed-form (circular) analytic.} The committed 3D
+  \emph{square}-loop solution vs the Ward \& Hohmann analytic, which is for a \emph{circular} loop. The fix
+  moves the mean from $1.19$ to $0.996$ (within $\sim$2\,\%). The earliest channel sits $\sim$4--5\,\% low:
+  that is the square-vs-circle geometry of the reference (the model is a square loop, the analytic a
+  circle), \emph{not} the time-stepping (Section~\ref{sec:geom}); it vanishes in the same-geometry
+  comparison of Figure~\ref{fig:hero}.}
+  \label{fig:hero_circle}
 \end{figure}
 
 \paragraph{Naming.} ``SimPEG'' labels only curves we \emph{compute by running SimPEG} (the 1D layered
@@ -78,7 +92,7 @@ The 1D code is therefore the trustworthy reference; with the actual \emph{square
 differs by \SI{1.82}{\percent} at the earliest time --- real geometry, addressed in
 Section~\ref{sec:geom}.
 
-\begin{figure}[h]\centering
+\begin{figure}[H]\centering
   \includegraphics[width=\textwidth]{fig_wardhohmann_1d.png}
   \caption{\textbf{The 1D layered solution reproduces the closed form.} SimPEG's 1D circular-loop response
   (markers) on the Ward \& Hohmann analytic (line); right, their difference, below \SI{1e-3}{\percent} at
@@ -94,15 +108,17 @@ this closed form as the mesh refines --- $+2.20\,\%$ at \SI{11}{k} cells down to
 \texttt{CircularLoop} source (which uses the finite-loop \texttt{CircularLoopWholeSpace} vector potential,
 not a point-dipole approximation) and the field assembly are implemented correctly.
 
-\begin{figure}[h]\centering
+\begin{figure}[H]\centering
   \includegraphics[width=0.72\textwidth]{fig_initial_field_convergence.png}
   \caption{\textbf{The 3D circular-loop initial field converges to the exact $\mu_0 I/(2a)$} as the octree
   refines --- spatial discretization, not a code bug.}
   \label{fig:init}
 \end{figure}
 
-\paragraph{(iii) With proper settings, the 3D solution matches the analytic.} Once the time-stepping is
-adequate, the 3D octree response lands on the analytic (Figure~\ref{fig:hero}, and Section~\ref{sec:fix}).
+\paragraph{(iii) With proper settings, the 3D solution matches the references.} Once the time-stepping is
+adequate, the 3D octree \emph{square}-loop response lands on the same-geometry 1D square solution
+(Figure~\ref{fig:hero}) and on the closed-form circular analytic (Figure~\ref{fig:hero_circle};
+Section~\ref{sec:fix}).
 \textbf{There is no defect in either the 1D or the 3D solver}; the original discrepancy was a time
 discretization that was too coarse.
 
@@ -127,7 +143,7 @@ Figure~\ref{fig:conv}). Refining the time-steps on the original mesh drives the 
 ($26\,\% \to 6\,\%$); refining the \emph{mesh} ($3.4\times$ cells) on the original time-steps barely moves
 it ($26\,\% \to 24\,\%$). The lever is unambiguously the time discretization.
 
-\begin{table}[h]\centering\small
+\begin{table}[H]\centering\small
 \caption{Convergence study, circular loop. Ratio of the 3D octree $\dbdt$ to the exact analytic.}
 \label{tab:conv}
 \begin{tabular}{lllcc}
@@ -143,7 +159,7 @@ mesh + time           & fine \SI{95}{k}  & $\times1.5$, 90  & 1.104 & 1.064--1.1
 \end{tabular}
 \end{table}
 
-\begin{figure}[h]\centering
+\begin{figure}[H]\centering
   \includegraphics[width=\textwidth]{fig_convergence_timesteps.png}
   \caption{\textbf{Convergence study (circular loop vs exact analytic).} Left: all configurations on the
   analytic. Right: ratio to analytic. Refining the time-steps collapses the response toward the analytic;
@@ -153,7 +169,7 @@ mesh + time           & fine \SI{95}{k}  & $\times1.5$, 90  & 1.104 & 1.064--1.1
   \label{fig:conv}
 \end{figure}
 
-\begin{figure}[h]\centering
+\begin{figure}[H]\centering
   \includegraphics[width=\textwidth]{fig_before_after_fix.png}
   \caption{\textbf{Circular loop, before/after the fix.} The original $\times2$ ramp (mean $1.26$) versus
   the $\times1.4$ fix (mean $1.06$), with the 1D layered circle (exact) and the analytic. The fix removes
@@ -161,8 +177,8 @@ mesh + time           & fine \SI{95}{k}  & $\times1.5$, 90  & 1.104 & 1.064--1.1
   \label{fig:fix}
 \end{figure}
 
-\noindent On the actual \emph{square} benchmark the fix lands even closer --- mean $0.996$
-(Figure~\ref{fig:hero}) --- because the square-loop geometry sits $\sim$1.8\,\% \emph{below} the
+\noindent Against the circular analytic the square benchmark lands even closer --- mean $0.996$
+(Figure~\ref{fig:hero_circle}) --- because the square-loop geometry sits $\sim$1.8\,\% \emph{below} the
 equal-area circle and partly cancels the spatial floor (Sections~\ref{sec:geom}--\ref{sec:onepct}).
 
 \section{The residual $\sim$1.8\,\% is real square-vs-circle geometry, not error}
@@ -186,7 +202,7 @@ early, bracketed by the inscribed and circumscribed circles throughout. Using th
 \emph{early-time} reference manufactures the ``error''; the correct apples-to-apples comparison ---
 1D layered square vs 3D octree square --- removes it (the $+0.2\,\%$ mean in Section~\ref{sec:onepct}).
 
-\begin{figure}[h]\centering
+\begin{figure}[H]\centering
   \includegraphics[width=\textwidth]{fig_diagnosis_1d_vs_3d.png}
   \caption{\textbf{Localizing the discrepancy.} The 1D layered square (black dashed) tracks the analytic to
   $\sim$2\,\%; the \emph{original} 3D octree square run (blue) is $7$--$24\,\%$ high --- a time-stepping
@@ -194,7 +210,7 @@ early, bracketed by the inscribed and circumscribed circles throughout. Using th
   \label{fig:diag}
 \end{figure}
 
-\begin{figure}[h]\centering
+\begin{figure}[H]\centering
   \includegraphics[width=\textwidth]{fig_loop_geometry.png}
   \caption{\textbf{The 1.8\,\% is square-vs-circle geometry.} Left: the square loop and three reference
   circles. Right: the 1D layered square response divided by each circle --- it converges to the equal-area
@@ -208,7 +224,7 @@ early, bracketed by the inscribed and circumscribed circles throughout. Using th
 Scored against the correct same-geometry reference (the 1D layered \emph{square} loop), the fix sits at
 mean $+0.2\,\%$ (max $3.0\,\%$). Pushing the steps \emph{finer} does not improve this --- it overshoots:
 
-\begin{table}[h]\centering\small
+\begin{table}[H]\centering\small
 \caption{Refining time-steps past the fix (coarse mesh), versus the 1D layered \emph{square} loop.}
 \begin{tabular}{lccc}
 \toprule
@@ -229,7 +245,7 @@ expose the spatial floor. This is the practical lesson on time-stepping: \textbf
 extreme}. The ramp must be gentle enough and have enough steps to resolve the early-time decay, but driving
 $\Delta t$ arbitrarily small only trades one bias for another.
 
-\begin{figure}[h]\centering
+\begin{figure}[H]\centering
   \includegraphics[width=0.86\textwidth]{fig_timestep_refinement.png}
   \caption{\textbf{Why ``more time-steps'' is not enough.} Per-channel error versus the 1D layered square
   loop as the ramp is refined. The temporal high-bias (red) gives way to a spatial floor several percent
@@ -239,8 +255,8 @@ $\Delta t$ arbitrarily small only trades one bias for another.
 
 \noindent Driving \emph{every} channel below 1\,\% independently (not by cancellation) is a mesh-refinement
 exercise --- targeted near-surface/source resolution to remove the spatial floor --- combined with the
-conservative time-stepping above. The mean is already within $\sim$0.5\,\%, and the headline benchmark
-(Figure~\ref{fig:hero}) is within $\sim$2\,\%.
+conservative time-stepping above. The mean is already within $\sim$0.5\,\%, and against the same-geometry
+1D square reference (Figure~\ref{fig:hero}) the headline result is within $\sim$3\,\% at every channel.
 
 \section*{Reproducibility}
 Every figure and number above is reproduced by the companion notebook
