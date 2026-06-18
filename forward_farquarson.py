@@ -220,7 +220,12 @@ def generate_time_steps(
     print("t_min:{:.1e}, t_max:{:.1e}".format(start_time_step, np.sum(time_steps)))
     return np.hstack(time_steps)
 
-time_steps = generate_time_steps(n_constant_steps=11, increase_rate=2, start_time_step=1e-6, n_per_step=5)
+# NOTE: the original coarse x2 ramp (increase_rate=2, 55 steps) under-resolves the
+# backward-Euler decay and biased dbz/dt high by +7-24% vs the analytic half-space.
+# The gentler x1.4 ramp below (156 steps) brings the 3D response to within ~2% of
+# analytic on the same mesh. See report.pdf / halfspace_validation_and_timestep_fix.ipynb.
+# old: generate_time_steps(n_constant_steps=11, increase_rate=2,   start_time_step=1e-6, n_per_step=5)
+time_steps = generate_time_steps(n_constant_steps=26, increase_rate=1.4, start_time_step=3e-7, n_per_step=6)
 
 
 simulation = time_domain.Simulation3DElectricField(
