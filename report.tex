@@ -14,8 +14,9 @@
 
 \newcommand{\dbdt}{\partial B_z/\partial t}
 
-\title{\vspace{-1.5em}\textbf{Diagnosing the SimPEG\,/\,analytic discrepancy\\ in the half-space TDEM validation}}
-\author{Validation note --- Li \textit{et al.} (2017) / Farquarson \& Li comparison}
+\title{\vspace{-1.5em}\textbf{Fixing and validating the half-space TDEM forward model}\\
+\large Li \textit{et al.} (2017) / Farquarson \& Li comparison}
+\author{Validation note}
 \date{June 2026}
 
 \begin{document}
@@ -24,65 +25,60 @@
 
 \section*{Summary}
 A discrepancy was reported between the analytic 1D half-space transient EM response and a SimPEG
-forward model (\texttt{comparision.ipynb}, validating against Farquarson \& Li, 2017). This note
-localizes the cause and quantifies what it takes to remove it.
+forward model (\texttt{comparision.ipynb}, validating against Farquarson \& Li, 2017). This note gives
+the fix first, then the analysis that justifies it.
 
 \begin{enumerate}\setlength\itemsep{0.1em}
-  \item \textbf{The SimPEG 1D layered solution is correct.} \texttt{Simulation1DLayered} reproduces the
-  closed-form Ward \& Hohmann half-space response to $\sim$5 significant figures (circular loop), and to
-  $\sim$2\,\% for the actual square loop --- where that 2\,\% is \emph{genuine square-versus-equal-area-circle
-  geometry}, not numerical error.
-  \item \textbf{The discrepancy is in the 3D octree forward model} (\texttt{forward\_farquarson.py},
-  which writes \texttt{half\_tem\_faquarson.csv}). That curve is \textbf{+7\,\% to +24\,\% high} and jagged.
-  \item \textbf{Root cause: the time-stepping, not the mesh.} The original $\times 2$ ramp (55 steps) is too
-  coarse for backward-Euler. Refining the time-steps alone (same mesh) brings the 3D result to
-  within $\sim$2\,\% of analytic; refining the mesh alone barely moves it.
-  \item \textbf{Reaching $<1\,\%$ at every channel} is not simply ``more time-steps'': the headline fix's
-  excellent \emph{mean} agreement is partly a cancellation between a temporal high-bias and a spatial
-  low-bias. It requires reducing both errors independently (Section~\ref{sec:onepct}).
+  \item \textbf{The fix is one line} in \texttt{forward\_farquarson.py}: a gentler time-step ramp
+  ($\times2\to\times1.4$). It moves the 3D octree response from \textbf{$+7$--$24\,\%$ high} to within
+  \textbf{$\sim\pm2\,\%$} of analytic on the \emph{same} mesh (Section~\ref{sec:fix}).
+  \item \textbf{Root cause: the time-stepping, not the mesh.} The original $\times2$ ramp (55 steps) is too
+  coarse for backward-Euler. Refining the time-steps alone removes the bias; refining the mesh alone barely
+  moves it (Section~\ref{sec:why}).
+  \item \textbf{The SimPEG 1D layered solution was never the problem.} \texttt{Simulation1DLayered}
+  reproduces the closed-form Ward \& Hohmann response to $\sim$5 significant figures (circular loop); it is
+  the trustworthy reference (Section~\ref{sec:1d}).
+  \item \textbf{The residual $\sim$1.8\,\% is real square-vs-circle geometry}, not modelling error
+  (Section~\ref{sec:geom}); driving \emph{every} channel below 1\,\% is a genuine convergence study, not a
+  one-line change (Section~\ref{sec:onepct}).
 \end{enumerate}
 
 \paragraph{Note on the original figure labels.} In \texttt{comparision.ipynb} the curve labelled
 \texttt{analytic-half} (\texttt{dpred}) is actually the SimPEG \emph{1D layered} result --- and it is the
 \emph{accurate} one. The curve labelled \texttt{simpeg-half} is the coarse 3D run that is off.
 
-\section{The analytic reference and the 1D solution}
-The vertical $\dbdt$ at the centre of a loop on a homogeneous half-space after a current step-off
-(Ward \& Hohmann, 1988) is
-\begin{equation}
-  \frac{\partial b_z}{\partial t} = -\frac{1}{\sigma a^3}
-  \left[\,3\,\mathrm{erf}(\theta a) - \frac{2}{\sqrt{\pi}}\,\theta a\,(3 + 2\theta^2 a^2)\,e^{-\theta^2 a^2}\right],
-  \qquad \theta = \sqrt{\frac{\mu_0 \sigma}{4t}},
-\end{equation}
-with $\sigma=\SI{0.1}{S/m}$ and equal-area radius $a=\sqrt{A/\pi}=\SI{56.42}{m}$ for the
-$\SI{100}{m}\times\SI{100}{m}$ loop. Running \texttt{Simulation1DLayered} with a \emph{circular} loop of
-radius $a$ matches this formula to $\sim$5 digits (max error \SI{0.001}{\percent}); with the actual
-\emph{square} \texttt{LineCurrent} it differs by 1.8\,\% at the earliest time, shrinking to 0.03\,\% late
---- the expected geometric convergence of a square loop to its equal-area circle. The 1D code is therefore
-\emph{not} the source of the discrepancy (Figure~\ref{fig:diag}).
-
-\begin{figure}[h]\centering
-  \includegraphics[width=\textwidth]{fig_diagnosis_1d_vs_3d.png}
-  \caption{\textbf{Localizing the discrepancy.} Left: the half-space decay. Right: ratio to the
-  closed-form analytic. The SimPEG 1D layered solution (black dashed) tracks the analytic to within
-  $\sim$2\,\%; the 3D octree run from the CSV (blue) is 7--24\,\% high and jagged.}
-  \label{fig:diag}
-\end{figure}
-
-\section{The discrepancy is in the 3D octree run}
+\section{The fix (applied to \texttt{forward\_farquarson.py})}
+\label{sec:fix}
 \texttt{forward\_farquarson.py} builds a tree mesh, paints conductivity by volume-averaging from a
 background tensor mesh, drives a \texttt{LineCurrent} source, and solves with
-\texttt{Simulation3DElectricField}. Reproducing it exactly recovers the published
-\texttt{half\_tem\_faquarson.csv} to \SI{0.07}{\percent} and confirms the +7--24\,\% bias relative to the
-analytic. The original time discretization is a coarse geometric ramp,
+\texttt{Simulation3DElectricField}. Its original time discretization is a coarse geometric ramp --- 55
+steps whose size doubles each level (\SI{1}{\micro s}\,$\to$\,\SI{1.02}{ms}). Doubling is too aggressive
+for the backward-Euler scheme to resolve the diffusing response, biasing $\dbdt$ high. The single line
+setting \texttt{time\_steps} was replaced with a gentler ramp:
 \begin{center}\small
-\texttt{generate\_time\_steps(n\_constant\_steps=11, increase\_rate=2, start\_time\_step=1e-6, n\_per\_step=5)}
+\begin{minipage}{0.93\textwidth}
+\texttt{\textcolor{red}{- }generate\_time\_steps(n\_constant\_steps=\textbf{11}, increase\_rate=\textbf{2},\ \ \ start\_time\_step=\textbf{1e-6}, n\_per\_step=\textbf{5})}\\
+\texttt{\textcolor{blue}{+ }generate\_time\_steps(n\_constant\_steps=\textbf{26}, increase\_rate=\textbf{1.4}, start\_time\_step=\textbf{3e-7}, n\_per\_step=\textbf{6})}
+\end{minipage}
 \end{center}
-i.e.\ 55 steps whose size doubles each level (\SI{1}{\micro s}\,$\to$\,\SI{1.02}{ms}). Doubling is too
-aggressive for the backward-Euler scheme to resolve the diffusing response, biasing $\dbdt$ high and
-producing the channel-to-channel ripple.
+The new ramp uses 156 steps (\SI{0.3}{\micro s}\,$\to$\,\SI{1.35}{ms}) and brings the 3D octree to within
+$\sim$2\,\% of analytic on the \emph{same} \texttt{[10,10,5]} mesh (Figure~\ref{fig:farq});
+\texttt{increase\_rate=1.5} (90 steps) is a cheaper $\sim$5\,\% compromise, and the mesh does not need to
+change. The committed \texttt{half\_tem\_faquarson.csv} was regenerated with this corrected time-stepping
+(mean ratio 0.996, range 0.955--1.019 vs analytic); the original is retained as
+\texttt{half\_tem\_faquarson.csv.orig\_backup}.
 
-\section{Diagnosis: time-stepping, not mesh}
+\begin{figure}[h]\centering
+  \includegraphics[width=\textwidth]{fig_farquarson_before_after.png}
+  \caption{\textbf{The committed Farquharson 3D octree solution, before vs after the time-stepping fix},
+  against the Ward \& Hohmann half-space analytic. Left: decay curves; right: ratio to analytic. The fix
+  moves the solution from $+7$--$24\,\%$ high (mean $1.19$) to within $\sim\pm2\,\%$ (mean $0.996$). Data
+  are the actual \texttt{half\_tem\_faquarson.csv} files (corrected and \texttt{.orig\_backup}).}
+  \label{fig:farq}
+\end{figure}
+
+\section{Why it works: time-stepping, not mesh}
+\label{sec:why}
 A convergence study isolates the cause (Table~\ref{tab:conv}, Figure~\ref{fig:conv}). Refining the
 \emph{time-steps} on the original mesh drives the error monotonically to zero; refining the \emph{mesh}
 ($3.3\times$ cells) on the original time-steps barely helps.
@@ -96,7 +92,7 @@ Configuration & Mesh & Time steps & Mean ratio & Range \\
 \midrule
 \textbf{Original} (published CSV) & coarse \SI{28.5}{k} & $\times2$, 55 & \textbf{1.187} & 1.07--1.24 \\
 finer time            & coarse \SI{28.5}{k} & $\times1.5$, 90  & 1.053 & 0.99--1.08 \\
-\textbf{finest time}  & coarse \SI{28.5}{k} & $\times1.4$, 156 & \textbf{0.996} & 0.96--1.02 \\
+\textbf{finest time (the fix)}  & coarse \SI{28.5}{k} & $\times1.4$, 156 & \textbf{0.996} & 0.96--1.02 \\
 finer \emph{mesh} only & fine \SI{94.9}{k}  & $\times2$, 55    & 1.156 & 1.08--1.22 \\
 mesh + time           & fine \SI{94.9}{k}  & $\times1.5$, 90  & 1.027 & 0.99--1.09 \\
 \bottomrule
@@ -114,37 +110,37 @@ time-steps on the \emph{same} mesh removes it (18.7\,\%\,$\to$\,0.4\,\%).
   \label{fig:conv}
 \end{figure}
 
-\subsection*{Recommended fix (applied to \texttt{forward\_farquarson.py})}
-The single line setting \texttt{time\_steps} was replaced with a gentler ramp:
-\begin{center}\small
-\begin{minipage}{0.93\textwidth}
-\texttt{\textcolor{red}{- }generate\_time\_steps(n\_constant\_steps=\textbf{11}, increase\_rate=\textbf{2},\ \ \ start\_time\_step=\textbf{1e-6}, n\_per\_step=\textbf{5})}\\
-\texttt{\textcolor{blue}{+ }generate\_time\_steps(n\_constant\_steps=\textbf{26}, increase\_rate=\textbf{1.4}, start\_time\_step=\textbf{3e-7}, n\_per\_step=\textbf{6})}
-\end{minipage}
-\end{center}
-The new ramp uses 156 steps (\SI{0.3}{\micro s}\,$\to$\,\SI{1.35}{ms}) and brings the 3D octree to within
-$\sim$2\,\% of analytic on the \emph{same} \texttt{[10,10,5]} mesh (Figure~\ref{fig:fix});
-\texttt{increase\_rate=1.5} (90 steps) is a cheaper $\sim$5\,\% compromise, and the mesh does not need to
-change. The committed \texttt{half\_tem\_faquarson.csv} was regenerated with this corrected
-time-stepping (mean ratio 0.996, range 0.955--1.019 vs analytic); the original is retained as
-\texttt{half\_tem\_faquarson.csv.orig\_backup}. Figure~\ref{fig:farq} plots the committed Farquharson
-solution before and after the fix against the Ward \& Hohmann analytic.
-
-\begin{figure}[h]\centering
-  \includegraphics[width=\textwidth]{fig_farquarson_before_after.png}
-  \caption{\textbf{The committed Farquharson 3D octree solution, before vs after the time-stepping fix},
-  against the Ward \& Hohmann half-space analytic. Left: decay curves; right: ratio to analytic. The fix
-  moves the solution from $+7$--$24\,\%$ high (mean $1.19$) to within $\sim\pm2\,\%$ (mean $0.996$). Data
-  are the actual \texttt{half\_tem\_faquarson.csv} files (corrected and \texttt{.orig\_backup}).}
-  \label{fig:farq}
-\end{figure}
-
 \begin{figure}[h]\centering
   \includegraphics[width=\textwidth]{fig_before_after_fix.png}
   \caption{\textbf{Before/after the fix.} The original time-stepping (red) versus the fixed time-stepping
   (blue), the 1D layered solution (green), and the analytic (black). The fix moves the 3D response from
   +7--24\,\% to within $\sim\pm2\,\%$.}
   \label{fig:fix}
+\end{figure}
+
+\section{The 1D layered solution is the correct reference}
+\label{sec:1d}
+The vertical $\dbdt$ at the centre of a loop on a homogeneous half-space after a current step-off
+(Ward \& Hohmann, 1988) is
+\begin{equation}
+  \frac{\partial b_z}{\partial t} = -\frac{1}{\sigma a^3}
+  \left[\,3\,\mathrm{erf}(\theta a) - \frac{2}{\sqrt{\pi}}\,\theta a\,(3 + 2\theta^2 a^2)\,e^{-\theta^2 a^2}\right],
+  \qquad \theta = \sqrt{\frac{\mu_0 \sigma}{4t}},
+\end{equation}
+with $\sigma=\SI{0.1}{S/m}$ and equal-area radius $a=\sqrt{A/\pi}=\SI{56.42}{m}$ for the
+$\SI{100}{m}\times\SI{100}{m}$ loop. Running \texttt{Simulation1DLayered} with a \emph{circular} loop of
+radius $a$ matches this formula to $\sim$5 digits (max error \SI{0.001}{\percent}); with the actual
+\emph{square} \texttt{LineCurrent} it differs by 1.8\,\% at the earliest time, shrinking to 0.03\,\% late
+--- the expected geometric convergence of a square loop to its equal-area circle (Section~\ref{sec:geom}).
+The 1D code is therefore \emph{not} the source of the discrepancy and is the trustworthy reference
+(Figure~\ref{fig:diag}).
+
+\begin{figure}[h]\centering
+  \includegraphics[width=\textwidth]{fig_diagnosis_1d_vs_3d.png}
+  \caption{\textbf{Localizing the discrepancy.} Left: the half-space decay. Right: ratio to the
+  closed-form analytic. The SimPEG 1D layered solution (black dashed) tracks the analytic to within
+  $\sim$2\,\%; the original 3D octree run (blue) is 7--24\,\% high and jagged.}
+  \label{fig:diag}
 \end{figure}
 
 \section{The 1.8\,\% ``geometric'' difference is real geometry, not modelling error}
@@ -241,8 +237,9 @@ time-stepping; true sub-1\,\% at every channel is achievable but is a genuine co
 than a one-line change. The \emph{mean} is already within $\sim$0.5\,\%.
 
 \section*{Reproducibility}
-All results are reproduced by the companion notebook
-\texttt{halfspace\_validation\_and\_timestep\_fix.ipynb} (self-contained, $\sim$1\,min runtime; it
-auto-selects whatever direct solver is installed). The convergence harness is \texttt{convergence.py}.
+Every figure and number above is reproduced by the companion notebook
+\texttt{halfspace\_validation\_and\_timestep\_fix.ipynb} (self-contained; $\sim$6--7\,min runtime for the
+seven 3D octree solves; it auto-selects whatever direct solver is installed). The convergence harness is
+\texttt{convergence.py} and the CSV regeneration is \texttt{regen\_half.py}.
 
 \end{document}
